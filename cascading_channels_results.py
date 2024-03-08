@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Import Data
-data_path = "rtc-tools-examples/cascading_channels/reference_output/timeseries_export.csv"
+data_path = "rtc-tools-examples/cascading_channels/output/timeseries_export.csv"
 record = np.recfromcsv(data_path, encoding=None)
 
 # Get times as datetime objects
