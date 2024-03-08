@@ -44,7 +44,12 @@ class Example(
     channel_n_level_nodes = 2
 
     def pre(self):
+        
+        
         super().pre()
+        # print(self.get_timeseries("Inflow_Q"))
+        # exit(1)
+        
         # Generate handy tuples to iterate over
         self.channel_node_indices = tuple(range(1, self.channel_n_level_nodes + 1))
         self.channel_level_nodes = tuple(
@@ -129,6 +134,9 @@ class Example(
 
     def post(self):
         super().post()
+        # print(self.get_timeseries("Inflow_Q"))
+        # exit(1)
+        
 
 
 # Run
