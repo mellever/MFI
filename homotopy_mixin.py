@@ -34,8 +34,10 @@ class HomotopyMixin(OptimizationProblem):
         #Assign the data from the results into the dictionary
         for key, result in dict_prev_result.items():
             times = self.times(key)
+            times = times[1:] #Omit first entry and shift times by 1 hour
+            result = result[1:] #Omit first entry of the results
             seed[key] = Timeseries(times, result)
-        
+
         #Return the result
         return seed
     ### End of smart seed function
@@ -115,7 +117,7 @@ class HomotopyMixin(OptimizationProblem):
         """
 
         return {
-            "theta_start": 0.0,
+            "theta_start": 1.0,
             "delta_theta_0": 1.0,
             "delta_theta_min": 0.01,
             "homotopy_parameter": "theta",
