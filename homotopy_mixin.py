@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, Union
 
+import numpy as np
+
 from .optimization_problem import OptimizationProblem
 from .timeseries import Timeseries
 
@@ -26,7 +28,7 @@ class HomotopyMixin(OptimizationProblem):
     ### My implementation of the smart seed function
     def smartseed(self, seed):
         import pandas as pd
-        prev_result = "~/Documents/Deltares/rtc-tools-examples/cascading_channels/output/results.csv"
+        prev_result = "rtc-tools-examples/cascading_channels/output/results.csv"
         df = pd.read_csv(prev_result) #Read in the data from the previous results
         df.drop(columns=df.columns[0], axis=1, inplace=True) #Drop first column with the time
         dict_prev_result = df.to_dict('list') #Convert to dictionary
@@ -34,10 +36,12 @@ class HomotopyMixin(OptimizationProblem):
         #Assign the data from the results into the dictionary
         for key, result in dict_prev_result.items():
             times = self.times(key)
-            times = times[1:] #Omit first entry and shift times by 1 hour
-            result = result[1:] #Omit first entry of the results
+            times = times[1:] 
+            result = result[1:]
+            # print(result)
+            
             seed[key] = Timeseries(times, result)
-
+        # exit(1)
         #Return the result
         return seed
     ### End of smart seed function
@@ -58,7 +62,14 @@ class HomotopyMixin(OptimizationProblem):
         # Overwrite the seed only when the results of the latest run are
         # stored within this class. That is, when the GoalProgrammingMixin
         # class is not used or at the first run of the goal programming loop.
-        if self.__theta > options["theta_start"] and getattr(self, "_gp_first_run", True):
+        overwrite_seed = False
+        if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+            if self.__theta > options["theta_start"]:
+                overwrite_seed = True
+        else:
+            if self.__theta.any() > options["theta_start"]:
+                overwrite_seed = True
+        if overwrite_seed and getattr(self, "_gp_first_run", True):
             for key, result in self.__results[ensemble_member].items():
                 times = self.times(key)
                 if (result.ndim == 1 and len(result) == len(times)) or (
@@ -67,7 +78,6 @@ class HomotopyMixin(OptimizationProblem):
                     # Only include seed timeseries which are consistent
                     # with the specified time stamps.
                     seed[key] = Timeseries(times, result)
-
                 elif (result.ndim == 1 and len(result) == 1) or (
                     result.ndim == 2 and result.shape[0] == 1
                 ):
@@ -83,7 +93,20 @@ class HomotopyMixin(OptimizationProblem):
             # to avoid accidental usage of the parameter value in e.g. pre().
             # Note that we use a try-except here instead of hasattr, to avoid
             # explicit name mangling.
-            parameters[options["homotopy_parameter"]] = self.__theta
+            if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+                parameters[options["homotopy_parameter"]] = self.__theta
+                self.io.set_timeseries(
+                    options["homotopy_parameter"],
+                    self.io.datetimes,
+                    np.full_like(np.arange(len(self.io.datetimes), dtype=float), self.__theta),
+                )
+            else:
+                parameters[options["homotopy_parameter"]] = self.__theta
+                self.io.set_timeseries(
+                    self.homotopy_options()["homotopy_parameter"],
+                    self.io.datetimes,
+                    self.__theta,
+                )
         except AttributeError:
             pass
 
@@ -117,20 +140,28 @@ class HomotopyMixin(OptimizationProblem):
         """
 
         return {
-            "theta_start": 1.0,
+            "theta_start": 0.0,
             "delta_theta_0": 1.0,
             "delta_theta_min": 0.01,
             "homotopy_parameter": "theta",
+            "non_linear_thresh_time_idx": len(self.io.datetimes),
         }
 
     def dynamic_parameters(self):
         dynamic_parameters = super().dynamic_parameters()
 
-        if self.__theta > 0:
-            # For theta = 0, we don't mark the homotopy parameter as being dynamic,
-            # so that the correct sparsity structure is obtained for the linear model.
-            options = self.homotopy_options()
-            dynamic_parameters.append(self.variable(options["homotopy_parameter"]))
+        if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+            if self.__theta > 0:
+                # For theta = 0, we don't mark the homotopy parameter as being dynamic,
+                # so that the correct sparsity structure is obtained for the linear model.
+                options = self.homotopy_options()
+                dynamic_parameters.append(self.variable(options["homotopy_parameter"]))
+        else:
+            if self.__theta.any() > 0:
+                # For theta = 0, we don't mark the homotopy parameter as being dynamic,
+                # so that the correct sparsity structure is obtained for the linear model.
+                options = self.homotopy_options()
+                dynamic_parameters.append(self.variable(options["homotopy_parameter"]))
 
         return dynamic_parameters
 
@@ -142,10 +173,21 @@ class HomotopyMixin(OptimizationProblem):
         options = self.homotopy_options()
         delta_theta = options["delta_theta_0"]
 
-        # Homotopy loop
-        self.__theta = options["theta_start"]
+        do_theta_loop = False
 
-        while self.__theta <= 1.0:
+        # Homotopy loop
+        if options["non_linear_thresh_time_idx"] == len(self.io.datetimes):
+            self.__theta = options["theta_start"]
+            if self.__theta <= 1.0:
+                do_theta_loop = True
+        else:
+            self.__theta = np.full_like(self.io.datetimes, float(options["theta_start"]))
+            for i in range(options["non_linear_thresh_time_idx"], len(self.__theta)):
+                self.__theta[i] = float(0.0)
+            if self.__theta.any() <= 1.0:
+                do_theta_loop = True
+
+        while do_theta_loop:
             logger.info("Solving with homotopy parameter theta = {}.".format(self.__theta))
 
             success = super().optimize(
@@ -156,20 +198,39 @@ class HomotopyMixin(OptimizationProblem):
                     self.extract_results(ensemble_member)
                     for ensemble_member in range(self.ensemble_size)
                 ]
+                if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+                    if self.__theta == 0.0:
+                        self.check_collocation_linearity = False
+                        self.linear_collocation = False
 
-                if self.__theta == 0.0:
-                    self.check_collocation_linearity = False
-                    self.linear_collocation = False
+                        # Recompute the sparsity structure for the nonlinear model family.
+                        self.clear_transcription_cache()
+                else:
+                    if self.__theta.any() == 0.0:
+                        self.check_collocation_linearity = False
+                        self.linear_collocation = False
 
-                    # Recompute the sparsity structure for the nonlinear model family.
-                    self.clear_transcription_cache()
+                        # Recompute the sparsity structure for the nonlinear model family.
+                        self.clear_transcription_cache()
 
             else:
-                if self.__theta == options["theta_start"]:
-                    break
-
-                self.__theta -= delta_theta
-                delta_theta /= 2
+                if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+                    if self.__theta == options["theta_start"]:
+                        break
+                else:
+                    if (
+                        self.__theta[0 : options["non_linear_thresh_time_idx"]].any()
+                        == options["theta_start"]
+                    ):
+                        break
+                if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+                    self.__theta -= delta_theta
+                    delta_theta /= 2
+                else:
+                    for i in range(0, len(self.__theta)):
+                        for i in range(0, options["non_linear_thresh_time_idx"]):
+                            self.__theta[i] -= delta_theta
+                            delta_theta /= 2
 
                 if delta_theta < options["delta_theta_min"]:
                     failure_message = (
@@ -185,7 +246,19 @@ class HomotopyMixin(OptimizationProblem):
                         logger.info(failure_message)
                     break
 
-            self.__theta += delta_theta
+            if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+                self.__theta += delta_theta
+            else:
+                for i in range(0, len(self.__theta)):
+                    if i in range(0, options["non_linear_thresh_time_idx"]):
+                        self.__theta[i] += delta_theta
+
+            if isinstance(self.__theta, float) or isinstance(self.__theta, int):
+                if self.__theta > 1.0:
+                    do_theta_loop = False
+            else:
+                if self.__theta.any() > 1.0:
+                    do_theta_loop = False
 
         # Post-processing
         if postprocessing:
