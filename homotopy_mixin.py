@@ -53,11 +53,11 @@ class HomotopyMixin(OptimizationProblem):
         
         ### My addition to the code
         #If smartseed is true, go into the data to retrieve the seed from the last result. 
-        ss = False
+        ss = True
         if ss:
             smart_seed =  self.smartseed(seed)
-            if self.__theta==1:
-                compare_key_list = ["UpperChannel.H[1]", "UpperChannel.H[2]"]
+            if self.__theta==1.0:
+                compare_key_list = ["UpperChannel.H[1]", "UpperChannel.H[2]", "MiddleChannel.H[1]", "MiddleChannel.H[2]", "LowerChannel.H[1]", "LowerChannel.H[2]"]
                 result_list_ss = [smart_seed[compare_key].values for compare_key in compare_key_list]
 
         ### End of my addition
@@ -88,16 +88,21 @@ class HomotopyMixin(OptimizationProblem):
                     seed[key] = result
    
         #Addition
-        if ss and self.__theta==1:
+        if ss and self.__theta==1.0:
+            
+            print("THETA = ", self.__theta)
+
             result_list = np.array([seed[compare_key].values for compare_key in compare_key_list])
             diff_arr = []
+
             for j in range(len(compare_key_list)):
                 res_ss = result_list_ss[j]
                 res = result_list[j]
-                diff = np.array([res_ss[i] - res[i] for i in range(len(res_ss))])
+                diff = np.abs(np.array([res_ss[i] - res[i] for i in range(len(res_ss))]))
                 diff_arr.append(diff)
             np.savetxt("/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/difference.txt", diff_arr)
             np.savetxt("/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/keylist.txt", compare_key_list, fmt="%s")
+            self.__theta = 1.1 #make sure the results do not get overwritten
 
         if ss: return smart_seed
         else: return seed
