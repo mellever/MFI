@@ -2,6 +2,8 @@ import logging
 from typing import Dict, Union
 
 import numpy as np
+import pandas as pd
+from copy import copy
 
 from .optimization_problem import OptimizationProblem
 from .timeseries import Timeseries
@@ -24,30 +26,30 @@ class HomotopyMixin(OptimizationProblem):
         of the (potentially expensive) homotopy process.
 
     """
-
+    
     ### My implementation of the smart seed function
     def smartseed(self, seed):
-        import pandas as pd
-        prev_result = "rtc-tools-examples/cascading_channels/output/results.csv"
+        prev_result = "/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/results.csv"
         df = pd.read_csv(prev_result) #Read in the data from the previous results
         df.drop(columns=df.columns[0], axis=1, inplace=True) #Drop first column with the time
         dict_prev_result = df.to_dict('list') #Convert to dictionary
+        seed_results = seed
 
         #Assign the data from the results into the dictionary
         for key, result in dict_prev_result.items():
             times = self.times(key)
             times = times[1:] 
             result = result[1:]
-            # print(result)
-            
+
             seed[key] = Timeseries(times, result)
-        # exit(1)
+
         #Return the result
         return seed
     ### End of smart seed function
 
     def seed(self, ensemble_member):
         seed = super().seed(ensemble_member)
+        seed_results = super().seed(ensemble_member)
         options = self.homotopy_options()
 
         
@@ -55,8 +57,11 @@ class HomotopyMixin(OptimizationProblem):
         #If smartseed is true, go into the data to retrieve the seed from the last result. 
         ss = True
         if ss:
-            seed = self.smartseed(seed)
-            return seed
+            smart_seed =  self.smartseed(seed)
+            if self.__theta==1:
+                compare_key = "UpperChannel.H[1]"
+                result_list_ss = smart_seed[compare_key].values
+
         ### End of my addition
 
         # Overwrite the seed only when the results of the latest run are
@@ -78,11 +83,22 @@ class HomotopyMixin(OptimizationProblem):
                     # Only include seed timeseries which are consistent
                     # with the specified time stamps.
                     seed[key] = Timeseries(times, result)
+
                 elif (result.ndim == 1 and len(result) == 1) or (
                     result.ndim == 2 and result.shape[0] == 1
                 ):
                     seed[key] = result
-        return seed
+   
+        #Addition
+        if ss and self.__theta==1:
+            result_list = seed[compare_key].values
+            diff = np.array([result_list_ss[i] - result_list[i+1] for i in range(len(result_list_ss))])
+            np.savetxt("/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/difference"+compare_key+".txt", diff)
+    
+
+        if ss: return smart_seed
+        else: return seed
+        ### Till here
 
     def parameters(self, ensemble_member):
         parameters = super().parameters(ensemble_member)
