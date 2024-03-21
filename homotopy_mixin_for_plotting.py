@@ -1,3 +1,5 @@
+#_____THIS IS THE CODE USED FOR GENERATING THE DATA TO COMPARE HOMOTOPY SEED VS SMARTSEED_______
+
 import logging
 from typing import Dict, Union
 
