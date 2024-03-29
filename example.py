@@ -107,6 +107,9 @@ class Example(
 
         return g
     
+    def priority_completed(self, priority):        
+        super().priority_completed(priority)
+    
     def priority_started(self, priority):
         super().priority_started(priority)
 
@@ -137,16 +140,26 @@ class Example(
         # exit(1)
         
 # Run
-import timeit
+import timeit, sys, os
 
 initial_data = "/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/input/initial_state.csv"
 
+"""
 upperCh1 = np.linspace(0.85, 1.35, 3)
 upperCh2 = np.linspace(0.85, 1.35, 3)
 middleCh1 = np.linspace(0.35, 0.85, 3)
 middleCh2 = np.linspace(0.35, 0.85, 3)
 lowerCh1 = np.linspace(-0.15, 0.35, 3)
 lowerCh2 = np.linspace(-0.15, 0.35, 3)
+"""
+
+
+upperCh1 = np.linspace(1.05, 1.15, 3)
+upperCh2 = np.linspace(0.95, 1.05, 3)
+middleCh1 = np.linspace(0.55, 0.65, 3)
+middleCh2 = np.linspace(0.45, 0.55, 3)
+lowerCh1 = np.linspace(0.05, 0.15, 3)
+lowerCh2 = np.linspace(-0.05, 0.05, 3)
 
 
 c1, c2, c3, c4, c5, c6 = np.meshgrid(upperCh1, upperCh2, middleCh1, middleCh2, lowerCh1, lowerCh2)
@@ -157,16 +170,24 @@ c4 = c4.flatten()
 c5 = c5.flatten()
 c6 = c6.flatten()
 
-
 initial_list = []
+initial_data = np.empty((len(c1),6))
 for i in range(len(c1)):
+    initial_data[i, :] = [c1[i], c2[i], c3[i], c4[i], c5[i], c6[i]]
     initial = str(c1[i])+","+str(c2[i])+","+str(c3[i])+","+str(c4[i])+","+str(c5[i])+","+str(c6[i])
     initial_list.append(initial)
 
+np.savetxt("/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/initials.txt", initial_data)
+exit()
+
+sys.stdout = open(os.devnull, 'w')
+#initial_list = ["1.1,1.0,0.6,0.5,0.1,0.0"] #num3
+#initial_list = ["1.09,1.099,0.59,0.49,0.09,0.01"] #num2
+#initial_list = ["1.05,0.95,0.55,0.45,0.05,-0.05"] #num1
 time_array = np.empty_like(initial_list, dtype=float)
 
 for i in range(len(initial_list)):
-
+    
     #Change initial conditions
     with open(initial_data,'r',encoding='utf-8') as file:
         data = file.readlines()
@@ -183,6 +204,5 @@ for i in range(len(initial_list)):
         time_array[i] = runtime
     except: 
         time_array[i] = np.nan
-    if i==2: break
 
-np.savetxt("/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/times_ss.txt", time_array)
+np.savetxt("/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/times_hs.txt", time_array)
