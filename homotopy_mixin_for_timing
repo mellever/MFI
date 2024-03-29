@@ -50,14 +50,14 @@ class HomotopyMixin(OptimizationProblem):
         seed = super().seed(ensemble_member)
         options = self.homotopy_options()
 
-        print("THETA = ", self.__theta)
-
         ### My addition to the code
+        if self.__theta==1.0: self.__theta = 1.1 #Hacky solution
+
         #If smartseed is true, go into the data to retrieve the seed from the last result. 
-        ss = False
-        if ss:
-            return self.smartseed(seed)
-        
+        self.ss = False
+        if self.ss:
+            smart_seed = self.smartseed(seed)
+            return smart_seed
 
         ### End of my addition
 
@@ -196,6 +196,7 @@ class HomotopyMixin(OptimizationProblem):
             success = super().optimize(
                 preprocessing=False, postprocessing=False, log_solver_failure_as_error=False
             )
+
             if success:
                 self.__results = [
                     self.extract_results(ensemble_member)
@@ -262,7 +263,11 @@ class HomotopyMixin(OptimizationProblem):
             else:
                 if self.__theta.any() > 1.0:
                     do_theta_loop = False
-
+        
+        #If solution does not converge, throw error. 
+        if not success: raise Exception("Solver did not converge")
+        
+        
         # Post-processing
         if postprocessing:
             self.post()
