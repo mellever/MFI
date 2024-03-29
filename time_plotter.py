@@ -1,40 +1,37 @@
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 times_ss = np.loadtxt('/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/times_ss.txt')
 times_hs = np.loadtxt('/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/times_hs.txt')
-times_ss_bounded = np.loadtxt('/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/times_ss_bounded.txt')
-times_ss_bounded2 = np.loadtxt('/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/times_ss_bounded2.txt')
-times_ss_bounded3 = np.loadtxt('/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/times_ss_bounded3.txt')
-initial = np.loadtxt('/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/initial.csv')
+initials = np.loadtxt('/home/melle/Documents/Deltares/rtc-tools-examples/cascading_channels/output/initials.txt')
 
+print("Average runtime smartseed = ",np.round(np.mean(times_ss[~np.isnan(times_ss)]),3),"s")
+print("Number of nans smartseed = ", len(times_ss[np.isnan(times_ss)]))
+print("Number of not nans smartseed = ", len(times_ss[~np.isnan(times_ss)]))
+print("Percentage of nans smartseed = ", np.round(len(times_ss[np.isnan(times_ss)])/(len(times_ss[~np.isnan(times_ss)])+len(times_ss[np.isnan(times_ss)]))*100,3),"%")
 
-runtime_hs = np.mean(times_hs[~np.isnan(times_hs)])
-runtime_ss = np.mean(times_ss[~np.isnan(times_ss)])
-runtime_ss_bounded = len(times_ss_bounded3[~np.isnan(times_ss_bounded3)])
-print("Average runtime homotopy", runtime_hs)
-print("Average runtime smartseed", runtime_ss)
-print("Speed improvement", round(100*(runtime_hs-runtime_ss)/runtime_hs, 3), "%")
-print("Average runtime smartseed bounded", runtime_ss_bounded)
+print("Average runtime homotopy = ", np.round(np.mean(times_hs[~np.isnan(times_hs)]),3),"s")
+print("Number of nans homotopy = ", len(times_hs[np.isnan(times_hs)]))
+print("Number of not nans homotopy = ", len(times_hs[~np.isnan(times_hs)]))
+print("Percentage of nans homotopy = ", np.round(len(times_hs[np.isnan(times_hs)])/(len(times_hs[~np.isnan(times_hs)])+len(times_hs[np.isnan(times_hs)]))*100,3),"%")
 
-smart_seed = [1.095857, 1.04805, 0.593602, 0.551997, 0.087886, 0.078495]
+print("Speed improvement", np.round(100*(np.mean((times_hs[~np.isnan(times_hs)])-np.mean(times_ss[~np.isnan(times_ss)]))/(np.mean(times_hs[~np.isnan(times_hs)]))), 3), "%")
 
-#initial conditions that give a nan, i.e. do not converge
-nan_initials = initial[np.isnan(times_ss)]
-diff_nan_initials = np.abs(nan_initials - smart_seed) #This needs to be the seed for the second hour
-#max_diff_nan = np.max(diff_nan_initials, axis=0)
-diff_nan_av = np.mean(diff_nan_initials, axis=0)
+smart_seed = np.array([1.095857, 1.04805, 0.593602, 0.551997, 0.087886, 0.078495])
 
-notnan_initials = initial[~np.isnan(times_ss)]
-diff_notnan_initials = np.abs(notnan_initials - smart_seed)
-#max_diff_notnan = np.max(diff_notnan_initials, axis=0)
-diff_notnan_av = np.mean(diff_notnan_initials, axis=0)
+diff = np.sum(np.abs(initials - smart_seed),axis=1)
+sorted_indices = np.argsort(diff)
+times_ss_sorted = times_ss[sorted_indices]
+times_hs_sorted = times_hs[sorted_indices]
+indices = np.arange(0, len(times_ss))
 
-print("Average difference not nan = ", diff_notnan_av)
-print("Average difference nan = ", diff_nan_av)
+plt.scatter(indices, times_ss, marker='.', label="Smart seed")
+plt.scatter(indices, times_hs, marker='.', label="Homotopy")
+plt.ylabel("Runtime [s]")
+plt.xlabel("Initial condition number")
+plt.legend()
+plt.grid()
+plt.show()
 
-sum_diff = np.sum(np.abs(diff_notnan_av - diff_nan_av))
-
-print("Sum of differences = ", sum_diff)
 
 
